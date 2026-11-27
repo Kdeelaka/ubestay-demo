@@ -4,7 +4,7 @@
  *
  *  1. Smooth scrolling (Lenis), kept in sync with ScrollTrigger
  *  2. Opening curtain (first visit to the top page) + hero text
- *  3. Text that rises in letter by letter   [data-split], big English titles
+ *  3. Text that rises in letter by letter   [data-split], big section titles
  *  4. Fade-up and photo "mask" reveals      [data-reveal], cards, lists
  *  5. Parallax photos                        [data-parallax]
  *  6. Rooms: sideways gallery while scrolling down   [data-hscroll]
@@ -124,21 +124,54 @@
 		el.classList.add( 'is-split' );
 	}
 
-	// Text nodes become one <span> per letter; elements (<em>, <br>, <span>)
-	// are copied and their children split the same way.
+	// Japanese line breaking (kinsoku): these never start a line, and these
+	// never end one. Each letter is its own inline-block, which turns those
+	// rules off, so they are kept in the same span as their neighbour.
+	var NO_LINE_START = /[、。，．・：；？！ー）」』】〕〉》ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ]/;
+	var NO_LINE_END = /[（「『【〔〈《]/;
+	// A phrase ends after these (or at a space). Letters of one phrase sit in
+	// an inline-block, so a line breaks between phrases ("まちに出かける、" /
+	// "ホテル。"), and inside one only when it is wider than the line.
+	var PHRASE_END = /[、。，．！？]/;
+
+	// Text nodes become one <span> per letter, grouped by phrase; elements
+	// (<em>, <br>, <span>) are copied and their children split the same way.
 	function splitNode( node ) {
 		if ( node.nodeType === 3 ) {
 			var frag = document.createDocumentFragment();
 			var text = node.textContent.replace( /\s+/g, ' ' );
+			var phrase = null;
+			var last = null;
+			var open = '';
 			Array.from( text ).forEach( function ( ch ) {
 				if ( ch === ' ' ) {
 					frag.appendChild( document.createTextNode( ' ' ) );
+					phrase = null;
+					last = null;
 					return;
+				}
+				if ( last && NO_LINE_START.test( ch ) ) {
+					last.textContent += ch;
+					if ( PHRASE_END.test( ch ) ) {
+						phrase = null;
+					}
+					return;
+				}
+				if ( NO_LINE_END.test( ch ) ) {
+					open += ch;
+					return;
+				}
+				if ( ! phrase ) {
+					phrase = document.createElement( 'span' );
+					phrase.className = 'split-phrase';
+					frag.appendChild( phrase );
 				}
 				var span = document.createElement( 'span' );
 				span.className = 'split-char';
-				span.textContent = ch;
-				frag.appendChild( span );
+				span.textContent = open + ch;
+				open = '';
+				phrase.appendChild( span );
+				last = span;
 			} );
 			return frag;
 		}
@@ -175,7 +208,6 @@
 				// scale + opacity only: animating letter-spacing would re-layout the
 				// page on every frame, and a blur filter is slow to draw.
 				.from( '.intro-curtain__name', { opacity: 0, scale: 1.12, duration: 1.2, ease: EASE }, '-=0.3' )
-				.from( '.intro-curtain__ja', { opacity: 0, y: 8, duration: 0.8, ease: EASE }, '-=0.9' )
 				.to( curtain, { yPercent: -100, duration: 1.1, ease: 'expo.inOut' }, '+=0.25' )
 				.add( function () {
 					root.classList.remove( 'intro' );
@@ -281,7 +313,7 @@
 		}
 
 		// Text split into letters only when it is about to be seen.
-		watch( '[data-split], .section-heading__en, .page-header__en', 'split' );
+		watch( '[data-split], .section-heading__title, .section-heading__en, .page-header__en', 'split' );
 		watch( '[data-reveal="mask"]', 'mask' );
 		watch( '[data-reveal]:not([data-reveal="mask"]):not([data-hero-in]), :is(.room-grid, .plan-grid, .news-list, .facility-list, .route-list, .spec-list) > *, .page-header__title, .page-header__lead', 'fade' );
 	}
